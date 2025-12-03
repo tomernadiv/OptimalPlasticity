@@ -1,0 +1,4 @@
+# ignore everything that is not code files
+*.py
+*.ipynb
+!.gitignore

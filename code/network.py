@@ -3,7 +3,7 @@ import torch.nn as nn
 import itertools as it
 import numpy as np
 
-
+eps = 1e-18
 
 
 class Network(nn.Module):
@@ -29,10 +29,11 @@ class Network(nn.Module):
         if W.ndim == 1:
             W = self.params_to_mat(W)
         P_unnorm = torch.exp((self.M @ W @ self.M.T) + torch.ones_like(self.M) @ torch.diag(s) @ self.M.T)
-        P = P_unnorm / P_unnorm.sum(1)[:, None]
+        P = P_unnorm / (P_unnorm.sum(1)[:, None] + eps)
         P2 = P - torch.eye(2**self.n).to(self.device)
         P2[:, -1] = 1
-        return torch.linalg.solve(P2.T, self.e)
+        pi = torch.linalg.solve(P2.T, self.e)
+        return pi
 
 
     
