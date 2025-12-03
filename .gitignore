@@ -1,4 +1,5 @@
-# ignore everything that is not code files
-*.py
-*.ipynb
-!.gitignore
+# ignore cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
