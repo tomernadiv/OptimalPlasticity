@@ -103,11 +103,42 @@ def solve_el_bvp(w0, wT, net, s, alpha=0.5, n_points=100, T=1.0):
         y_guess[i, :] = np.linspace(w0_np[i], wT_np[i], n_points)
         y_guess[d+i, :] = avg_v[i]
 
-    # Wrapper to freeze net, s, alpha
     fun = lambda t, y: EL_first_order_bvp(t, y, net, s, alpha)
     bc_fun = lambda ya, yb: bc(ya, yb, w0_np, wT_np)
 
-    sol = solve_bvp(fun, bc_fun, t_mesh, y_guess, max_nodes=1000, tol=1e-2)
+    sol = solve_bvp(fun, bc_fun, t_mesh, y_guess, max_nodes=2000, tol=1e-3, verbose=2)
     return sol
 
+def evaluate_solution(sol, net, s):
+    t_eval = sol.x
+    y_vals = sol.y
+    d = y_vals.shape[0] // 2
+    n_points = y_vals.shape[1]
+    
+    l_struct_vals = []
+    l_func_vals = []
+    
+    # 2. Iterate through time points
+    for i in range(n_points):
+        # Extract numpy arrays for this time step
+        w_np = y_vals[:d, i]
+        v_np = y_vals[d:, i]
+        
+        # Convert to PyTorch tensors
+        w = torch.from_numpy(w_np).float().to(net.device)
+        v = torch.from_numpy(v_np).float().to(net.device)
+        
+        # 3. Compute Energies using your existing functions
+        with torch.no_grad():
+             with torch.enable_grad():
+                ls = L_struct_energy(v)
+                lf = L_func_energy(w, v, net, s)
+        
+        l_struct_vals.append(ls.item())
+        l_func_vals.append(lf.item())
+    
+    l_struct = (np.array(l_struct_vals)).sum()
+    l_func = (np.array(l_func_vals)).sum()
+
+    return l_struct, l_func
 

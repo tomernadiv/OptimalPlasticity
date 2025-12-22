@@ -38,3 +38,10 @@ def params_to_mat(param, n):
         rows, cols = np.where(~np.eye(n, dtype=bool))
         mat[rows, cols] = param
         return mat
+
+def mat_to_params(mat):
+    n = mat.shape[0]
+    params = np.zeros(n * (n - 1))
+    rows, cols = np.where(~np.eye(n, dtype=bool))
+    params[rows * (n - 1) + cols] = mat[rows, cols]
+    return torch.tensor(params, dtype=torch.float32)

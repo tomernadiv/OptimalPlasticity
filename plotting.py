@@ -44,27 +44,27 @@ def plot_settings(w0, w1, pi0, pi1, s):
 
     # -- Stimulus --
     sns.heatmap(s_np, ax=ax_s, cbar=False, annot=annot, cmap='Greens', square=True,
-                yticklabels=False)
+                yticklabels=False, fmt=".2f", linewidths=0.5, linecolor='gray')
     ax_s.set_title('Stimulus $s$', fontweight='bold', fontsize=14)
 
     # -- Weights (Matrices) --
-    sns.heatmap(W0_mat, ax=ax_w0, cbar=False, annot=annot, cmap='bwr', center=0, square=True, fmt=".2f")
+    sns.heatmap(W0_mat, ax=ax_w0, cbar=False, annot=annot, cmap='bwr', center=0, square=True, fmt=".2f", linewidths=0.5, linecolor='gray')
     ax_w0.set_title('Initial Weights $w_0$', fontweight='bold', fontsize=12)
     ax_w0.set_xlabel('Post-synaptic')
     ax_w0.set_ylabel('Pre-synaptic')
 
-    sns.heatmap(W1_mat, ax=ax_w1, cbar=False, annot=annot, cmap='bwr', center=0, square=True, fmt=".2f")
+    sns.heatmap(W1_mat, ax=ax_w1, cbar=False, annot=annot, cmap='bwr', center=0, square=True, fmt=".2f", linewidths=0.5, linecolor='gray' )
     ax_w1.set_title('Final Weights $w_1$', fontweight='bold', fontsize=12)
     ax_w1.set_xlabel('Post-synaptic')
     ax_w1.set_ylabel('Pre-synaptic')
 
     # -- Functional Outputs --
-    sns.heatmap(pi0_np, ax=ax_p0, cbar=False, annot=annot, cmap='Purples', square=True, fmt=".2f",
-                yticklabels=False)
+    sns.heatmap(pi0_np, ax=ax_p0, cbar=False, annot=False, cmap='Purples', square=False,
+                yticklabels=False, linewidths=0.1, linecolor='gray')
     ax_p0.set_title('Initial Output $\\phi_0$', fontweight='bold', fontsize=12)
 
-    sns.heatmap(pi1_np, ax=ax_p1, cbar=False, annot=annot, cmap='Purples', square=True, fmt=".2f",
-                yticklabels=False)
+    sns.heatmap(pi1_np, ax=ax_p1, cbar=False, annot=False, cmap='Purples', square=False,
+                yticklabels=False, linewidths=0.1, linecolor='gray')
     ax_p1.set_title('Final Output $\\phi_1$', fontweight='bold', fontsize=12)
 
     # remove ticks from all axes
@@ -75,49 +75,76 @@ def plot_settings(w0, w1, pi0, pi1, s):
     plt.tight_layout()
     plt.show()
 
-def plot_trajectories(sols, func_embeddings, w0, w1, title='Optimal Trajectories'):
-    n_cols = len(sols)
-    # squeeze=False ensures axs is always 2D [rows, cols]
-    fig, axs = plt.subplots(2, n_cols, figsize=(5*n_cols, 12), squeeze=False)
+import numpy as np
+import matplotlib.pyplot as plt
+import torch
 
-    for i, ((_, w_traj, alpha), (_, embedding, alpha_f)) in enumerate(zip(sols, func_embeddings)):
+def plot_trajectories(solutions, func_embeddings, w0, w1, title='Optimal Trajectories'):
+    """
+    Plots structural (weight) and functional (MDS) trajectories for a list of Solution objects.
+    
+    Args:
+        solutions: List of Solution objects.
+        func_embeddings: List of numpy arrays (T, 2) corresponding to the MDS embedding of each solution.
+        w0, w1: Start and End weights (tensors or numpy arrays) for the naive baseline.
+    """
+    n_cols = len(solutions)
+    # squeeze=False ensures axs is always 2D [rows, cols] even if n_cols=1
+    fig, axs = plt.subplots(2, n_cols, figsize=(5 * n_cols, 10), squeeze=False)
+
+    # Convert baselines to numpy once for efficiency
+    w0_np = w0.detach().cpu().numpy() if isinstance(w0, torch.Tensor) else w0
+    w1_np = w1.detach().cpu().numpy() if isinstance(w1, torch.Tensor) else w1
+
+    for i, (sol, embedding) in enumerate(zip(solutions, func_embeddings)):
+        
+        # --- Extract Data from Solution Object ---
+        t = sol.t
+        w_traj = sol.w   # Shape (D, T)
+        alpha = sol.alpha
+        ls_val = sol.L_s
+        lf_val = sol.L_f
         
         # --- Row 0: Structural Space (Weights) ---
-        t = np.linspace(0, 1, w_traj.shape[1])
-        w0_np = w0.detach().cpu().numpy() if isinstance(w0, torch.Tensor) else w0
-        w1_np = w1.detach().cpu().numpy() if isinstance(w1, torch.Tensor) else w1
-        
-        naive_traj = np.linspace(w0_np, w1_np, w_traj.shape[1]).T
+        # Calculate naive linear interpolation for comparison
+        naive_traj = np.linspace(w0_np, w1_np, len(t)).T
         
         for j in range(w_traj.shape[0]):
-            axs[0,i].plot(t, w_traj[j, :], label=f'$w_{j}$')
-            axs[0,i].plot(t, naive_traj[j, :], 'k--', label='Naive' if j==0 else "")
-            
-        axs[0,i].scatter(t[0], w_traj[j, 0], marker='*', s=500, color='blue')
-        axs[0,i].scatter(t[-1], w_traj[j, -1], marker='*', s=500, color='red')
+            # Plot optimized path
+            axs[0, i].plot(t, w_traj[j, :], linewidth=2, label=f'$w_{j}$')
+            # Plot naive straight line path
+            axs[0, i].plot(t, naive_traj[j, :], 'k:', alpha=0.5, label='Naive' if j == 0 else "")
         
-        # COMBINED TITLE: Alpha (Column Header) + Space Name (Plot Title)
-        axs[0,i].set_title(f'alpha = {alpha}\n\nStructural Space', fontsize=16)
-        axs[0,i].set_xlabel('Time')
-        axs[0,i].set_ylabel('Weights')
-        axs[0,i].set_xticks([])
-        axs[0,i].set_yticks([])
-
-        if w0.shape[0] <= 5:
-            axs[0,i].legend()
+        # Title with Alpha and Structural Cost
+        axs[0, i].set_title(f'$\\alpha = {alpha}$\nStructural Space [$L_{{struct}}={ls_val:.2f}$]', fontsize=14)
+        axs[0, i].set_xlabel('Time')
+        if i == 0: axs[0, i].set_ylabel('Weight Value')
+        
+        # Clean up ticks
+        axs[0, i].set_xticks([0, 0.5, 1])
+        
+        # Only show legend for small networks to avoid clutter
+        if w_traj.shape[0] <= 5:
+            axs[0, i].legend(fontsize='small')
         
         # --- Row 1: Functional Space (MDS) ---
-        axs[1,i].scatter(embedding[:,0], embedding[:,1], c=t, cmap='jet')
-        axs[1,i].plot(embedding[:,0], embedding[:,1], 'k--', alpha=0.3)  
-        axs[1,i].scatter(embedding[0,0], embedding[0,1], marker='*', s=500, color='blue', label='Start')
-        axs[1,i].scatter(embedding[-1,0], embedding[-1,1], marker='*', s=500, color='red', label='End')
+        # Scatter colored by time
+        sc = axs[1, i].scatter(embedding[:, 0], embedding[:, 1], c=t, cmap='jet', s=20, alpha=0.8)
+        # Add a faint dashed line connecting the points to show flow
+        axs[1, i].plot(embedding[:, 0], embedding[:, 1], 'k--', alpha=0.2, linewidth=1)
         
-        axs[1,i].set_title('Functional Space (MDS)', fontsize=16)
-        axs[1,i].set_xlabel('Dim 1')
-        axs[1,i].set_ylabel('Dim 2')
-        axs[1,i].set_xticks([])
-        axs[1,i].set_yticks([])
+        # Mark Start and End points explicitly
+        axs[1, i].scatter(embedding[0, 0], embedding[0, 1], marker='*', s=200, color='blue', label='Start', edgecolors='k')
+        axs[1, i].scatter(embedding[-1, 0], embedding[-1, 1], marker='*', s=200, color='red', label='End', edgecolors='k')
+        
+        axs[1, i].set_title(f'Functional Space (MDS) [$L_{{func}}={lf_val:.2f}$]', fontsize=14)
+        axs[1, i].set_xlabel('Dim 1')
+        if i == 0: axs[1, i].set_ylabel('Dim 2')
+        
+        # Remove ticks for MDS as absolute coordinates are arbitrary
+        axs[1, i].set_xticks([])
+        axs[1, i].set_yticks([])
 
-    plt.suptitle(title, fontsize=24)
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.suptitle(title, fontsize=20, y=1.02)
+    plt.tight_layout()
     plt.show()
